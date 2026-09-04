@@ -4,6 +4,11 @@
 
 *(none)*
 
+## v 1.0.4
+released **2026-09-04**, including:
+ - Fix SelfUpdate3
+
+
 ## v 1.0.3
 released **2026-09-04**, including:
  - Fix SelfUpdate 2

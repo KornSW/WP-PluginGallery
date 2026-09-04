@@ -1,14 +1,14 @@
 {
   "name": "KornSW Plugin Gallery",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "KornSW",
   "homepage": "https://github.com/KornSW/WP-PluginGallery",
-  "download_url": "https://github.com/KornSW/WP-PluginGallery/releases/download/v1.0.3/kornsw-plugingallery.zip",
+  "download_url": "https://github.com/KornSW/WP-PluginGallery/releases/download/v1.0.4/kornsw-plugingallery.zip",
   "requires": "6.0",
   "requires_php": "7.4",
   "tested": "",
   "sections": {
     "description": "Schnelle WordPress-Plugin-Galerie auf Basis von GitHub-Repositories und WordPress-kompatiblen *.update.json-Dateien. Enthält zusätzlich einen Installer für Plugin-ZIP-URLs.",
-    "changelog": "<h4>Version 1.0.3</h4><ul><li>Fix SelfUpdate 2</li></ul>"
+    "changelog": "<h4>Version 1.0.4</h4><ul><li>Fix SelfUpdate3</li></ul>"
   }
 }
