@@ -357,12 +357,21 @@ class {{KSWUPD_CLASS_PREFIX}}SelfUpdate {
 
 			$transient     = get_site_transient( 'update_plugins' );
 			$local_version = trim( (string) ( $this->get_plugin_headers()['Version'] ?? '' ) );
+			$needs_refresh = false;
 
-			$known = is_object( $transient )
-				&& (
-					isset( $transient->response[ $this->plugin_basename ] )
-					|| isset( $transient->no_update[ $this->plugin_basename ] )
-				);
+			if ( ! is_object( $transient ) ) {
+				$needs_refresh = true;
+			}
+
+			$in_response = is_object( $transient )
+				&& isset( $transient->response[ $this->plugin_basename ] );
+
+			$in_no_update = is_object( $transient )
+				&& isset( $transient->no_update[ $this->plugin_basename ] );
+
+			if ( ! $in_response && ! $in_no_update ) {
+				$needs_refresh = true;
+			}
 
 			$checked_version = '';
 			if (
@@ -374,7 +383,37 @@ class {{KSWUPD_CLASS_PREFIX}}SelfUpdate {
 				$checked_version = trim( (string) $transient->checked[ $this->plugin_basename ] );
 			}
 
-			if ( ! $known || $checked_version === '' || $checked_version !== $local_version ) {
+			if ( $checked_version === '' || $checked_version !== $local_version ) {
+				$needs_refresh = true;
+			}
+
+			if ( $in_response ) {
+				$remote_version = trim(
+					(string) ( $transient->response[ $this->plugin_basename ]->new_version ?? '' )
+				);
+
+				if (
+					$remote_version === ''
+					|| version_compare( $remote_version, $local_version, '<=' )
+				) {
+					$needs_refresh = true;
+				}
+			}
+
+			if ( $in_no_update ) {
+				$remote_version = trim(
+					(string) ( $transient->no_update[ $this->plugin_basename ]->new_version ?? '' )
+				);
+
+				if (
+					$remote_version !== ''
+					&& version_compare( $remote_version, $local_version, '>' )
+				) {
+					$needs_refresh = true;
+				}
+			}
+
+			if ( $needs_refresh ) {
 				$this->refresh_wordpress_update_state();
 			}
 		}
