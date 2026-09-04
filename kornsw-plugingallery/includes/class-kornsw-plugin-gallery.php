@@ -102,7 +102,119 @@ final class KornSW_Plugin_Gallery {
 		return [
 			'Accept' => 'application/vnd.github+json',
 			'User-Agent' => 'KornSW-Plugin-Gallery/' . KORNSW_PLUGIN_GALLERY_VERSION,
+			'X-GitHub-Api-Version' => '2022-11-28',
 		];
+	}
+
+	private function browser_headers(): array {
+		return [
+			'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+			'Accept-Language' => 'en-US,en;q=0.9',
+			'Cache-Control' => 'no-cache',
+			'Pragma' => 'no-cache',
+			'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 KornSW-Plugin-Gallery/' . KORNSW_PLUGIN_GALLERY_VERSION,
+		];
+	}
+
+	private function github_error_details( $response, int $code ): string {
+		$message = 'GitHub API HTTP ' . $code;
+		$remaining = wp_remote_retrieve_header( $response, 'x-ratelimit-remaining' );
+		$limit = wp_remote_retrieve_header( $response, 'x-ratelimit-limit' );
+		$reset = wp_remote_retrieve_header( $response, 'x-ratelimit-reset' );
+		$retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+		if ( '' !== (string) $remaining || '' !== (string) $limit ) {
+			$message .= ' · Rate-Limit ' . ( '' !== (string) $remaining ? (string) $remaining : '?' ) . '/' . ( '' !== (string) $limit ? (string) $limit : '?' );
+		}
+		if ( '' !== (string) $reset && ctype_digit( (string) $reset ) ) {
+			$message .= ' · Reset ' . wp_date( 'H:i:s', (int) $reset );
+		}
+		if ( '' !== (string) $retry_after ) {
+			$message .= ' · Retry-After ' . (string) $retry_after . 's';
+		}
+		if ( is_array( $body ) && ! empty( $body['message'] ) ) {
+			$message .= ' · ' . sanitize_text_field( (string) $body['message'] );
+		}
+
+		return $message;
+	}
+
+	private function github_web_doc_update_urls( array $parts ): array {
+		$branches = [ 'master', 'main' ];
+		$found = [];
+		$last_error = '';
+
+		foreach ( $branches as $branch ) {
+			$url = sprintf(
+				'https://github.com/%s/%s/tree/%s/doc',
+				rawurlencode( $parts['owner'] ),
+				rawurlencode( $parts['repo'] ),
+				rawurlencode( $branch )
+			);
+
+			$response = wp_safe_remote_get( $url, [
+				'timeout' => 15,
+				'redirection' => 5,
+				'headers' => $this->browser_headers(),
+			] );
+
+			if ( is_wp_error( $response ) ) {
+				$last_error = $response->get_error_message();
+				continue;
+			}
+
+			$code = (int) wp_remote_retrieve_response_code( $response );
+			if ( 200 !== $code ) {
+				$last_error = 'GitHub-Webseite HTTP ' . $code;
+				continue;
+			}
+
+			$html = wp_remote_retrieve_body( $response );
+			if ( ! is_string( $html ) || '' === $html ) {
+				$last_error = 'Leere GitHub-Webseite';
+				continue;
+			}
+
+			$patterns = [
+				'~href=["\'](/' . preg_quote( $parts['owner'], '~' ) . '/' . preg_quote( $parts['repo'], '~' ) . '/blob/' . preg_quote( $branch, '~' ) . '/doc/[^"\']+\.update\.json)["\']~i',
+				'~\"path\":\"doc/([^\"]+\.update\.json)\"~i',
+				'~&quot;path&quot;:&quot;doc/([^&]+\.update\.json)&quot;~i',
+			];
+
+			if ( preg_match_all( $patterns[0], $html, $matches ) ) {
+				foreach ( $matches[1] as $path ) {
+					$raw = preg_replace( '~/blob/' . preg_quote( $branch, '~' ) . '/~', '/refs/heads/' . $branch . '/', $path, 1 );
+					$found[] = 'https://raw.githubusercontent.com' . $raw;
+				}
+			}
+
+			foreach ( [ $patterns[1], $patterns[2] ] as $pattern ) {
+				if ( preg_match_all( $pattern, $html, $matches ) ) {
+					foreach ( $matches[1] as $filename ) {
+						$filename = html_entity_decode( (string) $filename, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+						$filename = rawurldecode( $filename );
+						if ( str_contains( $filename, '/' ) ) {
+							$filename = basename( $filename );
+						}
+						$found[] = sprintf(
+							'https://raw.githubusercontent.com/%s/%s/refs/heads/%s/doc/%s',
+							rawurlencode( $parts['owner'] ),
+							rawurlencode( $parts['repo'] ),
+							rawurlencode( $branch ),
+							rawurlencode( $filename )
+						);
+					}
+				}
+			}
+
+			$found = array_values( array_unique( array_filter( $found ) ) );
+			if ( ! empty( $found ) ) {
+				return [ 'ok' => true, 'urls' => $found, 'branch' => $branch, 'error' => '' ];
+			}
+		}
+
+		return [ 'ok' => false, 'urls' => [], 'branch' => '', 'error' => $last_error ?: 'Keine *.update.json über GitHub-Webseite gefunden.' ];
 	}
 
 	private function remote_json( string $url ): array {
@@ -137,47 +249,71 @@ final class KornSW_Plugin_Gallery {
 			];
 		}
 
+		$label = $parts['owner'] . '/' . $parts['repo'];
 		$api = sprintf( 'https://api.github.com/repos/%s/%s/contents/doc', rawurlencode( $parts['owner'] ), rawurlencode( $parts['repo'] ) );
 		$response = wp_safe_remote_get( $api, [ 'timeout' => 12, 'headers' => $this->github_headers() ] );
+		$api_error = '';
+		$json_urls = [];
+
 		if ( is_wp_error( $response ) ) {
-			return [ 'plugins' => [], 'errors' => [ [ 'source' => $repo_url, 'label' => $parts['owner'] . '/' . $parts['repo'], 'error' => $response->get_error_message() ] ] ];
-		}
-		$code = (int) wp_remote_retrieve_response_code( $response );
-		if ( 200 !== $code ) {
-			return [ 'plugins' => [], 'errors' => [ [ 'source' => $repo_url, 'label' => $parts['owner'] . '/' . $parts['repo'], 'error' => 'Nicht verfügbar (HTTP ' . $code . ')' ] ] ];
-		}
-		$entries = json_decode( wp_remote_retrieve_body( $response ), true );
-		if ( ! is_array( $entries ) ) {
-			return [ 'plugins' => [], 'errors' => [ [ 'source' => $repo_url, 'label' => $parts['owner'] . '/' . $parts['repo'], 'error' => 'Nicht verfügbar (ungültige GitHub-Antwort)' ] ] ];
+			$api_error = 'GitHub API: ' . $response->get_error_message();
+		} else {
+			$code = (int) wp_remote_retrieve_response_code( $response );
+			if ( 200 === $code ) {
+				$entries = json_decode( wp_remote_retrieve_body( $response ), true );
+				if ( is_array( $entries ) ) {
+					foreach ( $entries as $entry ) {
+						if ( ! is_array( $entry ) || ( $entry['type'] ?? '' ) !== 'file' ) {
+							continue;
+						}
+						$name = (string) ( $entry['name'] ?? '' );
+						if ( preg_match( '/\.update\.json$/i', $name ) && ! empty( $entry['download_url'] ) ) {
+							$json_urls[] = (string) $entry['download_url'];
+						}
+					}
+				} else {
+					$api_error = 'GitHub API lieferte ungültiges JSON.';
+				}
+			} else {
+				$api_error = $this->github_error_details( $response, $code );
+			}
 		}
 
+		// Fallback ohne GitHub REST API. Das ist insbesondere auf Shared Hosting wichtig,
+		// wo das anonyme GitHub-API-Limit von mehreren Kunden geteilt werden kann.
+		if ( empty( $json_urls ) ) {
+			$web = $this->github_web_doc_update_urls( $parts );
+			if ( $web['ok'] ) {
+				$json_urls = $web['urls'];
+			} else {
+				$error = $api_error;
+				if ( '' !== $error ) {
+					$error .= ' · Web-Fallback: ' . $web['error'];
+				} else {
+					$error = 'Nicht verfügbar: ' . $web['error'];
+				}
+				return [ 'plugins' => [], 'errors' => [ [ 'source' => $repo_url, 'label' => $label, 'error' => $error ] ] ];
+			}
+		}
+
+		$json_urls = array_values( array_unique( $json_urls ) );
 		$plugins = [];
 		$errors = [];
-		$found_update_json = false;
-		foreach ( $entries as $entry ) {
-			if ( ! is_array( $entry ) || ( $entry['type'] ?? '' ) !== 'file' ) {
-				continue;
-			}
-			$name = (string) ( $entry['name'] ?? '' );
-			if ( ! preg_match( '/\.update\.json$/i', $name ) ) {
-				continue;
-			}
-			$found_update_json = true;
-			$json_url = (string) ( $entry['download_url'] ?? '' );
-			if ( '' === $json_url ) {
-				$errors[] = [ 'source' => $repo_url, 'label' => $name, 'error' => 'Keine Raw-URL von GitHub erhalten.' ];
-				continue;
-			}
+
+		foreach ( $json_urls as $json_url ) {
 			$loaded = $this->remote_json( $json_url );
+			$name = basename( (string) wp_parse_url( $json_url, PHP_URL_PATH ) );
 			if ( ! $loaded['ok'] ) {
-				$errors[] = [ 'source' => $json_url, 'label' => $name, 'error' => $loaded['error'] ];
+				$errors[] = [ 'source' => $json_url, 'label' => $name ?: $label, 'error' => $loaded['error'] ];
 				continue;
 			}
 			$plugins[] = $this->normalize_plugin( $loaded['data'], $json_url, $repo_url, $source_kind );
 		}
-		if ( ! $found_update_json ) {
-			$errors[] = [ 'source' => $repo_url, 'label' => $parts['owner'] . '/' . $parts['repo'], 'error' => 'Nicht verfügbar: keine *.update.json unter /doc gefunden.' ];
+
+		if ( empty( $plugins ) && empty( $errors ) ) {
+			$errors[] = [ 'source' => $repo_url, 'label' => $label, 'error' => 'Nicht verfügbar: keine *.update.json unter /doc gefunden.' ];
 		}
+
 		return [ 'plugins' => $plugins, 'errors' => $errors ];
 	}
 
@@ -278,11 +414,6 @@ final class KornSW_Plugin_Gallery {
 					<?php wp_nonce_field( 'kornsw_pg_refresh' ); ?>
 					<button class="button">Galerie aktualisieren</button>
 				</form>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-					<input type="hidden" name="action" value="kornsw_pg_discover">
-					<?php wp_nonce_field( 'kornsw_pg_discover' ); ?>
-					<button class="button button-secondary">Weitere Plugins auf GitHub suchen</button>
-				</form>
 			</div>
 
 			<h2 class="kornsw-pg-section-title">Verfügbare Plugins</h2>
@@ -306,6 +437,13 @@ final class KornSW_Plugin_Gallery {
 			</div>
 
 			<div class="kornsw-pg-panel">
+				<div class="kornsw-pg-toolbar">
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<input type="hidden" name="action" value="kornsw_pg_discover">
+						<?php wp_nonce_field( 'kornsw_pg_discover' ); ?>
+						<button class="button button-secondary">Weitere Plugins auf GitHub suchen</button>
+					</form>
+				</div>
 				<h2>Zusätzliche Galerie-Quelle</h2>
 				<p>GitHub-Repository-URL oder direkte, per HTTP-GET erreichbare <code>*.update.json</code>-URL. GitHub-Repositories dürfen mehrere Update-Dateien enthalten.</p>
 				<form class="kornsw-pg-inline" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
