@@ -114,9 +114,22 @@ jobs:
                   f"/master/{plugin['update_metadata']}"
               )
 
-              if f"Version: {version}" not in entry_text:
+              expected_homepage = f"https://github.com/{__import__('os').environ['GITHUB_REPOSITORY']}"
+
+              if not re.search(
+                  rf"(?mi)^\s*(?:\*\s*)?Version:\s*{re.escape(version)}\s*$",
+                  entry_text,
+              ):
                   raise SystemExit(f"Version header not materialized in {entry}")
-              if f"Update URI: {expected_uri}" not in entry_text:
+              if not re.search(
+                  rf"(?mi)^\s*(?:\*\s*)?Plugin URI:\s*{re.escape(expected_homepage)}\s*$",
+                  entry_text,
+              ):
+                  raise SystemExit(f"Plugin URI not materialized in {entry}")
+              if not re.search(
+                  rf"(?mi)^\s*(?:\*\s*)?Update URI:\s*{re.escape(expected_uri)}\s*$",
+                  entry_text,
+              ):
                   raise SystemExit(f"Update URI not materialized in {entry}")
               if not re.search(r"ksw[a-z0-9]+_bootstrap\(\s*__FILE__\s*\);", entry_text):
                   raise SystemExit(f"Personalized updater bootstrap missing in {entry}")

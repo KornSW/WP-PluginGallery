@@ -26,15 +26,15 @@ SELF_UPDATE_END = "/*******************************************/"
 
 RELEASE_HEADER_RE = re.compile(r"^\s*##\s+v\s+(\d+)\.(\d+)\.(\d+)\s*$", re.I)
 UPCOMING_RE = re.compile(r"^\s*##\s+Upcoming Changes(?:\s+\(([^)]+)\))?\s*$", re.I)
-PLUGIN_NAME_RE = re.compile(r"(?mi)^\s*\*\s*Plugin Name:\s*(.+?)\s*$")
+PLUGIN_NAME_RE = re.compile(r"(?mi)^\s*(?:\*\s*)?Plugin Name:\s*(.+?)\s*$")
 HEADER_LINE_RE = {
-    "Version": re.compile(r"(?mi)^(\s*\*\s*Version:\s*).*$"),
-    "Plugin URI": re.compile(r"(?mi)^(\s*\*\s*Plugin URI:\s*).*$"),
-    "Update URI": re.compile(r"(?mi)^(\s*\*\s*Update URI:\s*).*$"),
-    "Description": re.compile(r"(?mi)^\s*\*\s*Description:\s*(.*?)\s*$"),
-    "Author": re.compile(r"(?mi)^\s*\*\s*Author:\s*(.*?)\s*$"),
-    "Requires at least": re.compile(r"(?mi)^\s*\*\s*Requires at least:\s*(.*?)\s*$"),
-    "Requires PHP": re.compile(r"(?mi)^\s*\*\s*Requires PHP:\s*(.*?)\s*$"),
+    "Version": re.compile(r"(?mi)^(\s*(?:\*\s*)?Version:\s*)(.*?)\s*$"),
+    "Plugin URI": re.compile(r"(?mi)^(\s*(?:\*\s*)?Plugin URI:\s*)(.*?)\s*$"),
+    "Update URI": re.compile(r"(?mi)^(\s*(?:\*\s*)?Update URI:\s*)(.*?)\s*$"),
+    "Description": re.compile(r"(?mi)^(\s*(?:\*\s*)?Description:\s*)(.*?)\s*$"),
+    "Author": re.compile(r"(?mi)^(\s*(?:\*\s*)?Author:\s*)(.*?)\s*$"),
+    "Requires at least": re.compile(r"(?mi)^(\s*(?:\*\s*)?Requires at least:\s*)(.*?)\s*$"),
+    "Requires PHP": re.compile(r"(?mi)^(\s*(?:\*\s*)?Requires PHP:\s*)(.*?)\s*$"),
 }
 SKIP_MARKERS_RE = re.compile(r"\[(?:skip ci|ci skip|no ci|skip actions|actions skip)\]", re.I)
 BOOTSTRAP_PREFIX_RE = re.compile(r"\b(ksw[a-z0-9]{3,31})_bootstrap\s*\(\s*__FILE__\s*\)\s*;")
@@ -121,11 +121,14 @@ def existing_updater_prefix(content: str) -> str:
 def header_value(content: str, name: str) -> str:
     if name == "Plugin Name":
         m = PLUGIN_NAME_RE.search(content)
-    else:
-        m = HEADER_LINE_RE[name].search(content)
+        if not m:
+            return ""
+        return m.group(1).strip()
+
+    m = HEADER_LINE_RE[name].search(content)
     if not m:
         return ""
-    return m.group(1).strip()
+    return m.group(2).strip()
 
 def set_header(content: str, name: str, value: str) -> str:
     pattern = HEADER_LINE_RE[name]
@@ -139,8 +142,35 @@ def set_header(content: str, name: str, value: str) -> str:
     line_end = content.find("\n", plugin_name_match.end())
     if line_end == -1:
         fail("Cannot patch malformed plugin header.")
+
     insertion = f" * {name}: {value}\n"
-    return content[:line_end+1] + insertion + content[line_end+1:]
+    return content[:line_end + 1] + insertion + content[line_end + 1:]
+
+
+def ensure_managed_plugin_headers(
+    content: str,
+    homepage: str,
+    update_uri: str,
+    version: str,
+) -> str:
+    expected = {
+        "Plugin URI": homepage,
+        "Update URI": update_uri,
+        "Version": version,
+    }
+
+    for name, value in expected.items():
+        content = set_header(content, name, value)
+
+    for name, value in expected.items():
+        actual = header_value(content, name)
+        if actual != value:
+            fail(
+                f"Failed to materialize required plugin header '{name}'. "
+                f"Expected '{value}', got '{actual}'."
+            )
+
+    return content
 
 def short_plugin_token(plugin_name: str, slug: str) -> str:
     source = plugin_name.strip() or slug.strip()
@@ -504,9 +534,12 @@ def main() -> None:
             encoding="utf-8",
         )
 
-        content = set_header(content, "Plugin URI", homepage)
-        content = set_header(content, "Update URI", update_uri)
-        content = set_header(content, "Version", next_version)
+        content = ensure_managed_plugin_headers(
+            content,
+            homepage,
+            update_uri,
+            next_version,
+        )
         content = ensure_update_block(content, updater_prefix)
         entry.write_text(content, encoding="utf-8")
 
