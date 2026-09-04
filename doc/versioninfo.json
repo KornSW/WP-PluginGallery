@@ -1,13 +1,13 @@
 {
-  "currentVersionWithSuffix": "0.1.2",
+  "currentVersionWithSuffix": "1.0.0",
   "releaseType": "",
-  "currentVersion": "0.1.2",
-  "currentMajor": 0,
-  "currentMinor": 1,
-  "currentFix": 2,
-  "previousVersion": "0.1.1",
+  "currentVersion": "1.0.0",
+  "currentMajor": 1,
+  "currentMinor": 0,
+  "currentFix": 0,
+  "previousVersion": "0.1.2",
   "changeGrade": "fix",
-  "versionTimeInfo": "13:34:48",
+  "versionTimeInfo": "13:44:33",
   "versionDateInfo": "2026-09-04",
-  "versionNotes": "- Fix SelfUpdate-Process\n"
+  "versionNotes": "- **MVP** REACHED\n"
 }
