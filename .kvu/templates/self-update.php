@@ -40,6 +40,14 @@ class {{KSWUPD_CLASS_PREFIX}}SelfUpdate {
 		}
 
 		public function register_hooks(): void {
+			if (
+				is_admin()
+				&& defined( '{{KSWUPD_CLASS_PREFIX}}_SELF_UPDATE_DIAGNOSTICS' )
+				&& {{KSWUPD_CLASS_PREFIX}}_SELF_UPDATE_DIAGNOSTICS
+			) {
+				add_action( 'admin_menu', [ $this, 'register_diagnostics_page' ] );
+			}
+
 			$headers    = $this->get_plugin_headers();
 			$update_uri = trim( (string) ( $headers['UpdateURI'] ?? '' ) );
 
@@ -58,12 +66,9 @@ class {{KSWUPD_CLASS_PREFIX}}SelfUpdate {
 			add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'inject_update_transient' ] );
 			add_filter( 'plugin_row_meta', [ $this, 'filter_plugin_row_meta' ], 10, 2 );
 
-			if (
-				is_admin()
-				&& defined( '{{KSWUPD_CLASS_PREFIX}}_SELF_UPDATE_DIAGNOSTICS' )
-				&& {{KSWUPD_CLASS_PREFIX}}_SELF_UPDATE_DIAGNOSTICS
-			) {
-				add_action( 'admin_menu', [ $this, 'register_diagnostics_page' ] );
+			if ( is_admin() ) {
+				add_action( 'admin_init', [ $this, 'maybe_refresh_wordpress_update_state' ], 20 );
+				add_action( 'admin_notices', [ $this, 'render_update_refresh_notice' ] );
 			}
 		}
 
@@ -277,6 +282,89 @@ class {{KSWUPD_CLASS_PREFIX}}SelfUpdate {
 			return $info;
 		}
 
+		public function render_update_refresh_notice(): void {
+			if (
+				! current_user_can( 'update_plugins' )
+				|| ! isset( $_GET['{{KSWUPD_PREFIX}}_update_state_refreshed'] )
+				|| '1' !== (string) $_GET['{{KSWUPD_PREFIX}}_update_state_refreshed']
+			) {
+				return;
+			}
+
+			echo '<div class="notice notice-success is-dismissible"><p>Der WordPress-Update-Status wurde neu aufgebaut.</p></div>';
+		}
+
+		public function maybe_refresh_wordpress_update_state(): void {
+			if ( ! current_user_can( 'update_plugins' ) ) {
+				return;
+			}
+
+			if ( isset( $_GET['{{KSWUPD_PREFIX}}_refresh_update_state'] ) ) {
+				$requested_plugin = sanitize_text_field(
+					wp_unslash( (string) $_GET['{{KSWUPD_PREFIX}}_refresh_update_state'] )
+				);
+
+				if ( $requested_plugin === $this->plugin_basename ) {
+					check_admin_referer( '{{KSWUPD_PREFIX}}_refresh_update_state' );
+					$this->refresh_wordpress_update_state();
+
+					wp_safe_redirect(
+						add_query_arg(
+							'{{KSWUPD_PREFIX}}_update_state_refreshed',
+							'1',
+							admin_url( 'plugins.php' )
+						)
+					);
+					exit;
+				}
+			}
+
+			$transient     = get_site_transient( 'update_plugins' );
+			$local_version = trim( (string) ( $this->get_plugin_headers()['Version'] ?? '' ) );
+
+			$known = is_object( $transient )
+				&& (
+					isset( $transient->response[ $this->plugin_basename ] )
+					|| isset( $transient->no_update[ $this->plugin_basename ] )
+				);
+
+			$checked_version = '';
+			if (
+				is_object( $transient )
+				&& isset( $transient->checked )
+				&& is_array( $transient->checked )
+				&& isset( $transient->checked[ $this->plugin_basename ] )
+			) {
+				$checked_version = trim( (string) $transient->checked[ $this->plugin_basename ] );
+			}
+
+			if ( ! $known || $checked_version === '' || $checked_version !== $local_version ) {
+				$this->refresh_wordpress_update_state();
+			}
+		}
+
+		private function refresh_wordpress_update_state(): void {
+			static $refresh_in_progress = false;
+
+			if ( $refresh_in_progress ) {
+				return;
+			}
+
+			$refresh_in_progress = true;
+
+			delete_site_transient( 'update_plugins' );
+
+			if ( function_exists( 'wp_clean_plugins_cache' ) ) {
+				wp_clean_plugins_cache( true );
+			}
+
+			if ( function_exists( 'wp_update_plugins' ) ) {
+				wp_update_plugins();
+			}
+
+			$refresh_in_progress = false;
+		}
+
 		public function filter_plugin_row_meta( $links, $plugin_file ) {
 			if ( $plugin_file !== $this->plugin_basename ) {
 				return $links;
@@ -296,6 +384,19 @@ class {{KSWUPD_CLASS_PREFIX}}SelfUpdate {
 			}
 
 			$links[] = '<a href="' . esc_url( $plugin_uri ) . '" target="_blank" rel="noopener noreferrer">GitHub Repository</a>';
+
+			if ( current_user_can( 'update_plugins' ) ) {
+				$refresh_url = wp_nonce_url(
+					add_query_arg(
+						'{{KSWUPD_PREFIX}}_refresh_update_state',
+						rawurlencode( $this->plugin_basename ),
+						admin_url( 'plugins.php' )
+					),
+					'{{KSWUPD_PREFIX}}_refresh_update_state'
+				);
+
+				$links[] = '<a href="' . esc_url( $refresh_url ) . '">Update-Status neu prüfen</a>';
+			}
 
 			return $links;
 		}
