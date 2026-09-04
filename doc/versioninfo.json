@@ -1,13 +1,13 @@
 {
-  "currentVersionWithSuffix": "0.1.0",
+  "currentVersionWithSuffix": "0.1.1",
   "releaseType": "",
-  "currentVersion": "0.1.0",
+  "currentVersion": "0.1.1",
   "currentMajor": 0,
   "currentMinor": 1,
-  "currentFix": 0,
-  "previousVersion": "0.0.0",
-  "changeGrade": "initial",
-  "versionTimeInfo": "13:03:22",
+  "currentFix": 1,
+  "previousVersion": "0.1.0",
+  "changeGrade": "fix",
+  "versionTimeInfo": "13:25:55",
   "versionDateInfo": "2026-09-04",
-  "versionNotes": "- Initial Commit (G2)\n"
+  "versionNotes": "- Reihenfolge gedreht\n"
 }
