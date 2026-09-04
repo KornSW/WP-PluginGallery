@@ -4,6 +4,11 @@
 
 *(none)*
 
+## v 0.1.2
+released **2026-09-04**, including:
+ - Fix SelfUpdate-Process
+
+
 ## v 0.1.1
 released **2026-09-04**, including:
  - Reihenfolge gedreht
