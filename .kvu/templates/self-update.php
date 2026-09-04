@@ -65,6 +65,7 @@ class {{KSWUPD_CLASS_PREFIX}}SelfUpdate {
 			add_filter( 'plugins_api', [ $this, 'filter_plugin_information' ], 20, 3 );
 			add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'inject_update_transient' ] );
 			add_filter( 'plugin_row_meta', [ $this, 'filter_plugin_row_meta' ], 10, 2 );
+			add_action( 'upgrader_process_complete', [ $this, 'schedule_post_update_refresh' ], 100, 2 );
 
 			if ( is_admin() ) {
 				add_action( 'admin_init', [ $this, 'maybe_refresh_wordpress_update_state' ], 20 );
@@ -280,6 +281,41 @@ class {{KSWUPD_CLASS_PREFIX}}SelfUpdate {
 			];
 
 			return $info;
+		}
+
+		public function schedule_post_update_refresh( $upgrader, $hook_extra ): void {
+			if (
+				! is_array( $hook_extra )
+				|| 'update' !== (string) ( $hook_extra['action'] ?? '' )
+				|| 'plugin' !== (string) ( $hook_extra['type'] ?? '' )
+			) {
+				return;
+			}
+
+			$updated_plugins = [];
+
+			if ( isset( $hook_extra['plugins'] ) && is_array( $hook_extra['plugins'] ) ) {
+				$updated_plugins = array_map( 'strval', $hook_extra['plugins'] );
+			} elseif ( isset( $hook_extra['plugin'] ) ) {
+				$updated_plugins[] = (string) $hook_extra['plugin'];
+			}
+
+			if ( ! in_array( $this->plugin_basename, $updated_plugins, true ) ) {
+				return;
+			}
+
+			/*
+			 * Do not rebuild the update transient from inside the upgrader callback itself.
+			 * WordPress may still perform bookkeeping after upgrader_process_complete.
+			 * Running at shutdown guarantees that the freshly installed plugin files are
+			 * already in place and that our refresh is the final update-state operation
+			 * of this request.
+			 */
+			add_action( 'shutdown', [ $this, 'refresh_wordpress_update_state_after_self_update' ], PHP_INT_MAX );
+		}
+
+		public function refresh_wordpress_update_state_after_self_update(): void {
+			$this->refresh_wordpress_update_state();
 		}
 
 		public function render_update_refresh_notice(): void {
