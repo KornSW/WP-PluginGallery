@@ -285,6 +285,15 @@ final class KornSW_Plugin_Gallery {
 				</form>
 			</div>
 
+			<h2 class="kornsw-pg-section-title">Verfügbare Plugins</h2>
+			<div class="kornsw-pg-grid">
+				<?php foreach ( $catalog['plugins'] as $plugin ) : $this->render_plugin_card( $plugin ); endforeach; ?>
+				<?php foreach ( $catalog['errors'] as $error ) : $this->render_error_card( $error ); endforeach; ?>
+				<?php if ( empty( $catalog['plugins'] ) && empty( $catalog['errors'] ) ) : ?>
+					<div class="kornsw-pg-card"><h2>Keine Plugins gefunden</h2><p class="description">Die konfigurierten Quellen enthalten derzeit keine Plugins.</p></div>
+				<?php endif; ?>
+			</div>
+
 			<div class="kornsw-pg-panel">
 				<h2>Plugin aus ZIP-Datei installieren</h2>
 				<p>Direkte URL auf eine Plugin-ZIP-Datei eingeben. Die Installation erfolgt normal über WordPress und wird nicht als Galerie-Quelle gespeichert.</p>
@@ -320,15 +329,6 @@ final class KornSW_Plugin_Gallery {
 						</div>
 					<?php endforeach; endif; ?>
 				</div>
-			</div>
-
-			<h2 class="kornsw-pg-section-title">Verfügbare Plugins</h2>
-			<div class="kornsw-pg-grid">
-				<?php foreach ( $catalog['plugins'] as $plugin ) : $this->render_plugin_card( $plugin ); endforeach; ?>
-				<?php foreach ( $catalog['errors'] as $error ) : $this->render_error_card( $error ); endforeach; ?>
-				<?php if ( empty( $catalog['plugins'] ) && empty( $catalog['errors'] ) ) : ?>
-					<div class="kornsw-pg-card"><h2>Keine Plugins gefunden</h2><p class="description">Die konfigurierten Quellen enthalten derzeit keine Plugins.</p></div>
-				<?php endif; ?>
 			</div>
 
 			<?php $this->render_discovery_modal( is_array( $discovery ) ? $discovery : [] ); ?>

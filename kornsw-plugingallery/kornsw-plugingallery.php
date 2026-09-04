@@ -1,8 +1,6 @@
 <?php
 /**
  * Plugin Name: KornSW Plugin Gallery
- * Update URI: https://raw.githubusercontent.com/KornSW/WP-PluginGallery/master/doc/kornsw-plugingallery.update.json
- * Plugin URI: https://github.com/KornSW/WP-PluginGallery
  * Description: Schnelle WordPress-Plugin-Galerie auf Basis von GitHub-Repositories und WordPress-kompatiblen *.update.json-Dateien. Enthält zusätzlich einen Installer für Plugin-ZIP-URLs.
  * Version: 0.1.0
  * Author: KornSW
@@ -14,7 +12,6 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
-
 
 /*************** SELF-UPDATE ***************/
 define( 'KSWKORNSWGALLER06FB_SELF_UPDATE_DIAGNOSTICS', false );
