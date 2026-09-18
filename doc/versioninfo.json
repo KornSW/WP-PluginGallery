@@ -1,13 +1,13 @@
 {
-  "currentVersionWithSuffix": "1.0.5",
+  "currentVersionWithSuffix": "1.0.6",
   "releaseType": "",
-  "currentVersion": "1.0.5",
+  "currentVersion": "1.0.6",
   "currentMajor": 1,
   "currentMinor": 0,
-  "currentFix": 5,
-  "previousVersion": "1.0.4",
+  "currentFix": 6,
+  "previousVersion": "1.0.5",
   "changeGrade": "fix",
-  "versionTimeInfo": "15:15:44",
-  "versionDateInfo": "2026-09-09",
-  "versionNotes": "- added License and new Soruces\n"
+  "versionTimeInfo": "08:50:57",
+  "versionDateInfo": "2026-09-18",
+  "versionNotes": "- Merge branch 'master' of https://github.com/KornSW/WP-PluginGallery\n- neue quelle\n"
 }

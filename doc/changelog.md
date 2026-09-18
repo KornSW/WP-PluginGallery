@@ -4,6 +4,12 @@
 
 *(none)*
 
+## v 1.0.6
+released **2026-09-18**, including:
+ - Merge branch 'master' of https://github.com/KornSW/WP-PluginGallery
+ - neue quelle
+
+
 ## v 1.0.5
 released **2026-09-09**, including:
  - added License and new Soruces
