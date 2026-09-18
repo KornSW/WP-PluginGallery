@@ -21,5 +21,6 @@ return [
     'https://github.com/KornSW/WP-BeitragsCleaner',
     'https://github.com/KornSW/WP-Sitescan',
     'https://github.com/KornSW/WP-PubmedCollection',
-    'https://github.com/KornSW/WP-Memberlist'
+    'https://github.com/KornSW/WP-Memberlist',
+    'https://github.com/KornSW/WP-KnowledgeRepo'
 ];
