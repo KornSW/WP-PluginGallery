@@ -4,6 +4,11 @@
 
 *(none)*
 
+## v 1.0.5
+released **2026-09-09**, including:
+ - added License and new Soruces
+
+
 ## v 1.0.4
 released **2026-09-04**, including:
  - Fix SelfUpdate3
