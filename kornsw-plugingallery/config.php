@@ -39,8 +39,11 @@ return [
   'https://github.com/KornSW/WP-RemoteArticles',
 
   // Favorites from the WordPress.org plugin directory, e.g.:
-  'https://wordpress.org/plugins/wordfence/'
-
-
+  'https://wordpress.org/plugins/wordfence/',
+  'https://wordpress.org/plugins/host-webfonts-local/',
+  'https://wordpress.org/plugins/complianz-gdpr/',
+  'https://wordpress.org/plugins/wp-database-backup/',
+  'https://wordpress.org/plugins/smtp-mailer/',
+  'https://wordpress.org/plugins/google-analytics-for-wordpress/'
 
 ];
