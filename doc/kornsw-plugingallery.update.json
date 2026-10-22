@@ -1,14 +1,14 @@
 {
   "name": "KornSW Plugin Gallery",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": "KornSW",
   "homepage": "https://github.com/KornSW/WP-PluginGallery",
-  "download_url": "https://github.com/KornSW/WP-PluginGallery/releases/download/v1.1.0/kornsw-plugingallery.zip",
+  "download_url": "https://github.com/KornSW/WP-PluginGallery/releases/download/v1.1.1/kornsw-plugingallery.zip",
   "requires": "6.0",
   "requires_php": "7.4",
   "tested": "",
   "sections": {
     "description": "Schnelle WordPress-Plugin-Galerie auf Basis von GitHub-Repositories, WordPress-kompatiblen *.update.json-Dateien und Favoriten aus dem WordPress.org-Plugin-Verzeichnis. Enthält zusätzlich einen Installer für Plugin-ZIP-URLs.",
-    "changelog": "<h4>Version 1.1.0</h4><ul><li>**New Feature:** GitHub Personal Access Token (verschlüsselt gespeichert oder per wp-config.php) sowie ETag- und Repository-Caching gegen das GitHub-Rate-Limit</li><li>**New Feature:** weitere Repositories mit Präfix WP- der Favoriten-Autoren werden automatisch angezeigt, Favoriten mit Stern hervorgehoben</li><li>**New Feature:** Favoriten und Quellen aus dem WordPress.org-Plugin-Verzeichnis, Installation über den WordPress-Installer</li><li>Code nach PSR-4 (src/) umgebaut, Repository-Struktur und Dokumentation gemäß Richtlinien</li></ul>"
+    "changelog": "<h4>Version 1.1.1</h4><ul><li>neue offizielle plugins</li></ul>"
   }
 }

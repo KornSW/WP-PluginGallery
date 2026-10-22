@@ -4,6 +4,11 @@
 
 *(none)*
 
+## v 1.1.1
+released **2026-10-22**, including:
+ - neue offizielle plugins
+
+
 ## v 1.1.0
 released **2026-10-22**, including:
  - **New Feature:** GitHub Personal Access Token (verschlüsselt gespeichert oder per wp-config.php) sowie ETag- und Repository-Caching gegen das GitHub-Rate-Limit

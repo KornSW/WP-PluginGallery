@@ -1,13 +1,13 @@
 {
-  "currentVersionWithSuffix": "1.1.0",
+  "currentVersionWithSuffix": "1.1.1",
   "releaseType": "",
-  "currentVersion": "1.1.0",
+  "currentVersion": "1.1.1",
   "currentMajor": 1,
   "currentMinor": 1,
-  "currentFix": 0,
-  "previousVersion": "1.0.6",
-  "changeGrade": "minor",
-  "versionTimeInfo": "11:45:31",
+  "currentFix": 1,
+  "previousVersion": "1.1.0",
+  "changeGrade": "fix",
+  "versionTimeInfo": "19:53:24",
   "versionDateInfo": "2026-10-22",
-  "versionNotes": "- **New Feature:** GitHub Personal Access Token (verschlüsselt gespeichert oder per wp-config.php) sowie ETag- und Repository-Caching gegen das GitHub-Rate-Limit\n- **New Feature:** weitere Repositories mit Präfix WP- der Favoriten-Autoren werden automatisch angezeigt, Favoriten mit Stern hervorgehoben\n- **New Feature:** Favoriten und Quellen aus dem WordPress.org-Plugin-Verzeichnis, Installation über den WordPress-Installer\n- Code nach PSR-4 (src/) umgebaut, Repository-Struktur und Dokumentation gemäß Richtlinien\n"
+  "versionNotes": "- neue offizielle plugins\n"
 }
