@@ -4,7 +4,7 @@
  * Update URI: https://raw.githubusercontent.com/KornSW/WP-PluginGallery/master/doc/kornsw-plugingallery.update.json
  * Plugin URI: https://github.com/KornSW/WP-PluginGallery
  * Description: Schnelle WordPress-Plugin-Galerie auf Basis von GitHub-Repositories, WordPress-kompatiblen *.update.json-Dateien und Favoriten aus dem WordPress.org-Plugin-Verzeichnis. Enthält zusätzlich einen Installer für Plugin-ZIP-URLs.
- * Version: 1.0.6
+ * Version: 1.1.0
  * Author: KornSW
  * Requires at least: 6.0
  * Requires PHP: 7.4
