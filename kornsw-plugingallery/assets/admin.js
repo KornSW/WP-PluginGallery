@@ -1,12 +1,34 @@
-(function(){
-'use strict';
-function ready(fn){if(document.readyState!=='loading'){fn();}else{document.addEventListener('DOMContentLoaded',fn);}}
-ready(function(){
-  var open=document.getElementById('kornsw-pg-open-discovery');
-  var modal=document.getElementById('kornsw-pg-modal');
-  var close=document.getElementById('kornsw-pg-modal-close');
-  if(open&&modal){open.addEventListener('click',function(e){e.preventDefault();modal.classList.add('is-open');});}
-  if(close&&modal){close.addEventListener('click',function(){modal.classList.remove('is-open');});}
-  if(modal){modal.addEventListener('click',function(e){if(e.target===modal){modal.classList.remove('is-open');}});}
-});
+(function () {
+  'use strict';
+
+  function onReady(callback) {
+    if (document.readyState !== 'loading') {
+      callback();
+    } else {
+      document.addEventListener('DOMContentLoaded', callback);
+    }
+  }
+
+  onReady(function () {
+    var modal = document.getElementById('kornsw-pg-modal');
+    var closeButton = document.getElementById('kornsw-pg-modal-close');
+    if (!modal) {
+      return;
+    }
+    if (closeButton) {
+      closeButton.addEventListener('click', function () {
+        modal.classList.remove('is-open');
+      });
+    }
+    modal.addEventListener('click', function (event) {
+      if (event.target === modal) {
+        modal.classList.remove('is-open');
+      }
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        modal.classList.remove('is-open');
+      }
+    });
+  });
 })();

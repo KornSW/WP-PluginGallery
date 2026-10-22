@@ -2,7 +2,10 @@
 
 ## Upcoming Changes
 
-*(none)*
+ - **New Feature:** GitHub Personal Access Token (verschlüsselt gespeichert oder per wp-config.php) sowie ETag- und Repository-Caching gegen das GitHub-Rate-Limit
+ - **New Feature:** weitere Repositories mit Präfix WP- der Favoriten-Autoren werden automatisch angezeigt, Favoriten mit Stern hervorgehoben
+ - **New Feature:** Favoriten und Quellen aus dem WordPress.org-Plugin-Verzeichnis, Installation über den WordPress-Installer
+ - Code nach PSR-4 (src/) umgebaut, Repository-Struktur und Dokumentation gemäß Richtlinien
 
 ## v 1.0.5
 released **2026-09-09**, including:
