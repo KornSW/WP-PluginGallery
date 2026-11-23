@@ -1,13 +1,13 @@
 {
-  "currentVersionWithSuffix": "1.1.1",
+  "currentVersionWithSuffix": "1.2.0",
   "releaseType": "",
-  "currentVersion": "1.1.1",
+  "currentVersion": "1.2.0",
   "currentMajor": 1,
-  "currentMinor": 1,
-  "currentFix": 1,
-  "previousVersion": "1.1.0",
-  "changeGrade": "fix",
-  "versionTimeInfo": "19:53:24",
-  "versionDateInfo": "2026-10-22",
-  "versionNotes": "- neue offizielle plugins\n"
+  "currentMinor": 2,
+  "currentFix": 0,
+  "previousVersion": "1.1.1",
+  "changeGrade": "minor",
+  "versionTimeInfo": "18:16:38",
+  "versionDateInfo": "2026-11-23",
+  "versionNotes": "- **New Feature:** private GitHub-Repositories der Favoriten-Autoren (Anzeige, Installation und automatische Updates) mit hinterlegtem Token\n- **New Feature:** Knopf „Jetzt aktualisieren“ auf der Galerie-Seite für Plugins mit verfügbarem Update\n"
 }
