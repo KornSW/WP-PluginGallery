@@ -19,11 +19,13 @@ final class PluginInstaller {
   private ?array $installedPlugins = null;
 
   /**
-   * Installs a plugin ZIP from a URL.
+   * Installs a plugin ZIP from a URL. With $overwrite an installed plugin in the same folder is replaced
+   * (like core "upload and replace"); this is the manual update path that does not depend on the
+   * plugin's own update check.
    *
    * @return array{ok: bool, error: string}
    */
-  public function installPackage(string $packageUrl): array {
+  public function installPackage(string $packageUrl, bool $overwrite = false): array {
     if ($packageUrl === '' || !wp_http_validate_url($packageUrl)) {
       return ['ok' => false, 'error' => 'Ungültige Paket-URL.'];
     }
@@ -34,7 +36,11 @@ final class PluginInstaller {
 
     $skin = new \Automatic_Upgrader_Skin();
     $upgrader = new \Plugin_Upgrader($skin);
-    $result = $upgrader->install($packageUrl);
+    if ($overwrite) {
+      $result = $upgrader->install($packageUrl, ['overwrite_package' => true]);
+    } else {
+      $result = $upgrader->install($packageUrl);
+    }
     if (is_wp_error($result)) {
       return ['ok' => false, 'error' => $result->get_error_message()];
     }

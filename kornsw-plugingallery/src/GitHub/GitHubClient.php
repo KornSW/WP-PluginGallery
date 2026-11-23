@@ -100,7 +100,9 @@ final class GitHubClient {
         }
         $name = (string) ($entry['name'] ?? '');
         if (preg_match('/\.update\.json$/i', $name) === 1 && !empty($entry['download_url'])) {
-          $urls[] = (string) $entry['download_url'];
+          // Private repositories return a short-lived "?token=..." in the raw URL: never keep it. The clean URL
+          // is resolved with the configured token by PrivateRepositoryFallback.
+          $urls[] = (string) strtok((string) $entry['download_url'], '?');
         }
       }
       return $urls;

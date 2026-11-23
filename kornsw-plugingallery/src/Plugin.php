@@ -12,6 +12,7 @@ use KornSW\PluginGallery\Catalog\UpdateJsonReader;
 use KornSW\PluginGallery\Catalog\WordPressOrgDirectory;
 use KornSW\PluginGallery\GitHub\GitHubClient;
 use KornSW\PluginGallery\GitHub\GitHubTokenStore;
+use KornSW\PluginGallery\GitHub\PrivateRepositoryFallback;
 use KornSW\PluginGallery\Installer\PluginInstaller;
 use KornSW\PluginGallery\Security\SecretCipher;
 
@@ -28,6 +29,7 @@ final class Plugin {
   public const REQUIRED_CAPABILITY = 'install_plugins';
 
   private static ?Plugin $instance = null;
+  private static bool $privateRepositoryFallbackRegistered = false;
 
   private GalleryPage $galleryPage;
   private AdminActions $adminActions;
@@ -65,11 +67,25 @@ final class Plugin {
    * Entry point, called on "plugins_loaded".
    */
   public static function boot(): void {
+    self::registerPrivateRepositoryFallback();
     if (self::$instance !== null || !is_admin()) {
       return;
     }
     self::$instance = new self();
     self::$instance->registerHooks();
+  }
+
+  /**
+   * Private repositories of the well-known authors (token required). Registered on every request, also
+   * outside the admin area, because WordPress runs automatic plugin updates from WP-Cron.
+   */
+  private static function registerPrivateRepositoryFallback(): void {
+    if (self::$privateRepositoryFallbackRegistered) {
+      return;
+    }
+    self::$privateRepositoryFallbackRegistered = true;
+    $fallback = new PrivateRepositoryFallback(new GitHubTokenStore(new SecretCipher()), new SourceConfiguration());
+    $fallback->register();
   }
 
   private function registerHooks(): void {

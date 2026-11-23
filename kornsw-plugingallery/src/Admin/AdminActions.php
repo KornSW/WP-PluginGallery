@@ -58,6 +58,7 @@ final class AdminActions {
     add_action('admin_post_kornsw_pg_add_source', [$this, 'handleAddSource']);
     add_action('admin_post_kornsw_pg_remove_source', [$this, 'handleRemoveSource']);
     add_action('admin_post_kornsw_pg_install_plugin', [$this, 'handleInstallPlugin']);
+    add_action('admin_post_kornsw_pg_update_plugin', [$this, 'handleUpdatePlugin']);
     add_action('admin_post_kornsw_pg_install_zip_url', [$this, 'handleInstallZipUrl']);
     add_action('admin_post_kornsw_pg_discover', [$this, 'handleDiscover']);
     add_action('admin_post_kornsw_pg_add_discovered', [$this, 'handleAddDiscovered']);
@@ -137,6 +138,25 @@ final class AdminActions {
     }
     check_admin_referer('kornsw_pg_install_' . md5($packageUrl));
     $this->installAndRedirect($packageUrl);
+  }
+
+  /**
+   * Manual update from the gallery card: reinstalls the release ZIP over the installed plugin. Works even
+   * when the automatic update of the plugin cannot see the new version (e.g. private repository).
+   */
+  public function handleUpdatePlugin(): void {
+    $this->assertCapability('update_plugins');
+    $packageUrl = '';
+    if (isset($_POST['package'])) {
+      $packageUrl = esc_url_raw(wp_unslash((string) $_POST['package']));
+    }
+    check_admin_referer('kornsw_pg_update_' . md5($packageUrl));
+    $this->extendTimeLimit();
+    $result = $this->installer->installPackage($packageUrl, true);
+    if (!$result['ok']) {
+      $this->redirectWithNotice('error', 'Update fehlgeschlagen: ' . $result['error']);
+    }
+    $this->redirectWithNotice('success', 'Plugin wurde aktualisiert.');
   }
 
   public function handleInstallZipUrl(): void {

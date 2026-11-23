@@ -198,6 +198,9 @@ final class GalleryPage {
       if ($state['version'] !== '' && version_compare($state['version'], (string) $entry['version'], '<')) {
         echo '<a class="kornsw-pg-update" href="' . esc_url(self_admin_url('plugins.php')) . '">Update auf '
           . esc_html((string) $entry['version']) . ' verfügbar</a>';
+        if (!$isWordPressOrg && (string) $entry['download_url'] !== '' && current_user_can('update_plugins')) {
+          $this->renderUpdateButton((string) $entry['download_url']);
+        }
       }
     } elseif ($isWordPressOrg) {
       echo '<a class="button button-primary" href="' . esc_url($this->installer->getWordPressOrgInstallUrl((string) $entry['slug'])) . '">Installieren</a>';
@@ -219,6 +222,20 @@ final class GalleryPage {
     } elseif ($entry['homepage'] !== '') {
       echo '<a class="button" href="' . esc_url((string) $entry['homepage']) . '" target="_blank" rel="noopener noreferrer">Projektseite</a>';
     }
+  }
+
+  /**
+   * Manual update (reinstalls the release ZIP over the installed plugin).
+   */
+  private function renderUpdateButton(string $packageUrl): void {
+    ?>
+    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+      <input type="hidden" name="action" value="kornsw_pg_update_plugin">
+      <input type="hidden" name="package" value="<?php echo esc_attr($packageUrl); ?>">
+      <?php wp_nonce_field('kornsw_pg_update_' . md5($packageUrl)); ?>
+      <button class="button">Jetzt aktualisieren</button>
+    </form>
+    <?php
   }
 
   /**
@@ -245,6 +262,12 @@ final class GalleryPage {
         nach kurzer Zeit erschöpft. Mit Token sind es 5.000 pro Stunde. Es genügt ein
         <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Fine-grained Token</a>
         mit „Public repositories (read-only)“ und ohne weitere Berechtigungen.
+      </p>
+      <p>
+        Private Repositories der Favoriten-Autoren: Hat der Token Lesezugriff darauf (Fine-grained Token mit
+        „Contents: Read-only“ für die Repositories, bzw. klassischer Token mit <code>repo</code>), funktionieren
+        Galerie, Installation und die automatischen Updates dieser Plugins. Private Repositories werden nicht
+        automatisch gefunden, sondern in die Favoriten oder als zusätzliche Quelle eingetragen.
       </p>
       <p><strong>Status:</strong> <?php echo esc_html($this->describeTokenState()); ?></p>
       <?php if ($rateLimit !== null) { ?>

@@ -26,6 +26,7 @@ Administratoren von WordPress-Installationen, die die Plugins von KornSW (und di
 6. **GitHub-Token:** Ein Personal Access Token kann hinterlegt werden (verschlüsselt in der Datenbank oder als Konstante `KORNSW_PG_GITHUB_TOKEN` in der `wp-config.php`). Er wird vor dem Speichern gegen GitHub geprüft und ausschließlich an `api.github.com` gesendet. Ein leeres Eingabefeld behält den gespeicherten Token; Entfernen ist eine eigene Aktion.
 7. **Rate-Limit-Schonung:** Eine unveränderte Galerie darf beim Aktualisieren nur eine API-Anfrage pro GitHub-Besitzer kosten. Bei erschöpftem Limit wird der letzte bekannte Stand angezeigt und GitHub bis zum Reset nicht weiter abgefragt. Das zuletzt gemeldete Kontingent ist auf der Seite sichtbar.
 8. **Suche nach weiteren Plugins:** Auf Knopfdruck werden die übrigen (nicht `WP-*`) Repositories der Favoriten-Besitzer durchsucht; Funde können als zusätzliche Quellen übernommen werden.
+9. **Private Repositories der Favoriten-Autoren:** Ist ein Token mit Lesezugriff hinterlegt, funktionieren Anzeige, Installation und die automatischen Updates (Self-Update der installierten Plugins, auch per WP-Cron) auch für private Repositories der GitHub-Besitzer aus `config.php`. Öffentliche Repositories verhalten sich unverändert. Zusätzlich bietet jede Karte mit verfügbarem Update einen Knopf „Jetzt aktualisieren“, der das Release-ZIP über das installierte Plugin installiert – unabhängig vom Update-Mechanismus des Plugins.
 
 ## Nicht-funktionale Anforderungen
 
@@ -37,5 +38,5 @@ Administratoren von WordPress-Installationen, die die Plugins von KornSW (und di
 ## Nicht-Ziele
 
 - Keine eigene Update-Logik für installierte Plugins (das übernimmt der Self-Update-Mechanismus der Plugins bzw. WordPress selbst).
-- Keine privaten GitHub-Repositories (der Self-Update-Mechanismus der Plugins lädt ohne Token).
+- Keine automatische Suche nach privaten Repositories (sie müssen als Favorit oder zusätzliche Quelle eingetragen sein, siehe Anforderung 9).
 - Keine Galerie-Anzeige im Frontend.

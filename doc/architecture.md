@@ -10,6 +10,7 @@ Das Plugin liegt im Ordner [`kornsw-plugingallery/`](../kornsw-plugingallery/) (
 | `Source` | Wert-Objekt einer Quelle (GitHub-Repo, WordPress.org-Slug, `update.json`-URL) inkl. Parser für Eingaben. |
 | `SourceConfiguration` | Favoriten aus `config.php` und gespeicherte zusätzliche Quellen (Option `kornsw_pg_extra_sources`). |
 | `GitHub\GitHubClient` | REST-API mit Token, ETag-Cache, Rate-Limit-Erkennung; Fallback über die GitHub-Webseite. |
+| `GitHub\PrivateRepositoryFallback` | Hook `http_response`: ersetzt 404-Antworten für private Repositories der Favoriten-Besitzer durch Abrufe über die API mit Token (siehe unten). |
 | `GitHub\GitHubTokenStore` | Token aus `wp-config.php` oder verschlüsselt aus Option `kornsw_pg_github_token`. |
 | `Security\SecretCipher` | AES-256-GCM mit Schlüssel aus den WordPress-Salts. |
 | `Catalog\RepositoryScanner` | Plugins eines Repositories (`doc/*.update.json`), Cache je Repository über `pushed_at`. |
@@ -30,6 +31,20 @@ Das Plugin liegt im Ordner [`kornsw-plugingallery/`](../kornsw-plugingallery/) (
 Bei erschöpftem Rate-Limit (vom letzten Response gemeldet) werden keine API-Anfragen gesendet, bis der Reset erreicht ist; stattdessen werden gecachte Daten verwendet. Fehler, `403`/`429` und `5xx` fallen ebenfalls auf gecachte Daten zurück. Gibt es keinen Cache, wird der `/doc`-Ordner über die GitHub-Webseite gelesen.
 
 Details: [Entscheidung zur Rate-Limit-Strategie](decisions/decision-github-rate-limit-strategy.md).
+
+## Private Repositories
+
+Der Self-Update-Mechanismus der Plugins (`self-update.php`, von der Release-Pipeline erzeugt) und der WordPress-Upgrader laden `update.json` und Release-ZIP ohne Token; bei privaten Repositories antwortet GitHub mit `404`. `PrivateRepositoryFallback` hängt sich – auf jeder Anfrage, auch per WP-Cron – in den Filter `http_response` und greift nur ein, wenn
+
+- die Antwort `404` ist, die Methode `GET`,
+- die URL `raw.githubusercontent.com/<owner>/<repo>/<ref>/<pfad>` oder `github.com/<owner>/<repo>/releases/download/<tag>/<asset>` (bzw. `releases/latest/download/<asset>`) ist,
+- `<owner>` ein GitHub-Besitzer der Favoriten aus `config.php` ist und ein Token hinterlegt ist.
+
+Dann wird die Datei über `/repos/<owner>/<repo>/contents/<pfad>?ref=<ref>` (Medientyp raw) bzw. das Asset über `/releases/tags/<tag>` → `/releases/assets/<id>` (`application/octet-stream`, ohne Redirect-Folgen) geladen; die signierte Download-URL wird ohne Token abgerufen, Streaming in die Temp-Datei von `download_url()` bleibt erhalten. Öffentliche Repositories (Antwort `200`) kosten keine zusätzliche Anfrage. Der Token geht weiterhin nur an `api.github.com`. Kurzlebige `?token=`-Parameter aus der Contents-API werden nicht übernommen.
+
+Unabhängig davon installiert „Jetzt aktualisieren“ auf einer Karte mit verfügbarem Update das Release-ZIP per `Plugin_Upgrader::install(..., ['overwrite_package' => true])` über das installierte Plugin (wie „Hochladen und ersetzen“ im Core).
+
+Details: [Entscheidung](decisions/decision-private-repositories-via-token-fallback.md).
 
 ## Datenhaltung
 

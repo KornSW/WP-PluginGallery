@@ -14,6 +14,7 @@ use KornSW\PluginGallery\Catalog\UpdateJsonReader;
 use KornSW\PluginGallery\Catalog\WordPressOrgDirectory;
 use KornSW\PluginGallery\GitHub\GitHubClient;
 use KornSW\PluginGallery\GitHub\GitHubTokenStore;
+use KornSW\PluginGallery\GitHub\PrivateRepositoryFallback;
 use KornSW\PluginGallery\Security\SecretCipher;
 use KornSW\PluginGallery\Source;
 use KornSW\PluginGallery\SourceConfiguration;
@@ -240,11 +241,98 @@ function testDiscovery(): void {
   Assert::same(['Tools'], names($candidates), 'Discovery offers plugins of non-WP repositories only');
 }
 
+function createFallback(): PrivateRepositoryFallback {
+  return new PrivateRepositoryFallback(new GitHubTokenStore(new SecretCipher()), new SourceConfiguration(__DIR__ . '/fixtures/config.php'));
+}
+
+function notFound(): array {
+  return ['status' => 404, 'body' => '{"message":"Not Found"}', 'headers' => []];
+}
+
+function testPrivateRepositoryFallback(): void {
+  TestState::reset();
+  $rawUrl = RAW . 'WP-Secret/master/doc/kornsw-secret.update.json';
+  $contentsUrl = API . '/repos/KornSW/WP-Secret/contents/doc/kornsw-secret.update.json?ref=master';
+  FakeHttp::on($contentsUrl, function (array $headers): array {
+    if (($headers['Authorization'] ?? '') !== 'Bearer github_pat_TEST') {
+      return notFound();
+    }
+    return FakeHttp::json(200, updateJson('KornSW Secret', '2.0.0', 'kornsw-secret'));
+  });
+
+  // Without a token nothing changes.
+  $result = createFallback()->filterHttpResponse(notFound(), ['method' => 'GET'], $rawUrl);
+  Assert::same(404, $result['status'], 'Without token the 404 stays');
+  Assert::same(0, count(FakeHttp::$requests), 'Without token no request is sent');
+
+  $tokenStore = new GitHubTokenStore(new SecretCipher());
+  $tokenStore->save('github_pat_TEST');
+  $fallback = createFallback();
+
+  $ok = ['status' => 200, 'body' => '{}', 'headers' => []];
+  Assert::same($ok, $fallback->filterHttpResponse($ok, ['method' => 'GET'], $rawUrl), 'Successful responses (public repositories) are untouched');
+  Assert::same(0, count(FakeHttp::$requests), 'Public repositories cost no extra request');
+
+  $foreign = 'https://raw.githubusercontent.com/SomeoneElse/WP-Secret/master/doc/x.update.json';
+  Assert::same(404, $fallback->filterHttpResponse(notFound(), ['method' => 'GET'], $foreign)['status'], 'Unknown owners are untouched');
+  Assert::same(0, count(FakeHttp::$requests), 'The token is never used for unknown owners');
+
+  $result = $fallback->filterHttpResponse(notFound(), ['method' => 'GET', 'timeout' => 15], $rawUrl);
+  Assert::same(200, $result['status'], 'Private update.json of a known owner is resolved via the API');
+  Assert::same('2.0.0', json_decode($result['body'], true)['version'], 'Resolved content is the file content');
+  Assert::same('application/vnd.github.raw', FakeHttp::$requests[0]['headers']['Accept'], 'Raw media type is requested');
+
+  $refsUrl = RAW . 'WP-Secret/refs/heads/master/doc/kornsw-secret.update.json';
+  Assert::same(200, createFallback()->filterHttpResponse(notFound(), [], $refsUrl)['status'], 'refs/heads form is resolved as well');
+
+  // Release asset: releases API with token, signed download URL without token.
+  FakeHttp::reset();
+  $assetApiUrl = API . '/repos/KornSW/WP-Secret/releases/assets/42';
+  $signedUrl = 'https://release-assets.githubusercontent.com/signed/kornsw-secret.zip?sig=abc';
+  FakeHttp::on(API . '/repos/KornSW/WP-Secret/releases/tags/v2.0.0', function () use ($assetApiUrl): array {
+    return FakeHttp::json(200, ['assets' => [
+      ['name' => 'other.zip', 'url' => API . '/repos/KornSW/WP-Secret/releases/assets/41'],
+      ['name' => 'kornsw-secret.zip', 'url' => $assetApiUrl],
+    ]]);
+  });
+  FakeHttp::on($assetApiUrl, function (array $headers) use ($signedUrl): array {
+    Assert::same('application/octet-stream', $headers['Accept'] ?? '', 'Asset is requested as binary');
+    return ['status' => 302, 'body' => '', 'headers' => ['Location' => $signedUrl]];
+  });
+  FakeHttp::on($signedUrl, function (): array {
+    return ['status' => 200, 'body' => 'PK-zip-bytes', 'headers' => []];
+  });
+  $packageUrl = 'https://github.com/KornSW/WP-Secret/releases/download/v2.0.0/kornsw-secret.zip';
+  $result = createFallback()->filterHttpResponse(notFound(), ['method' => 'GET', 'stream' => true, 'filename' => '/tmp/x.zip', 'timeout' => 300], $packageUrl);
+  Assert::same(200, $result['status'], 'Private release asset is downloaded');
+  Assert::same('PK-zip-bytes', $result['body'], 'Downloaded content is the asset');
+  $lastRequest = FakeHttp::$requests[count(FakeHttp::$requests) - 1];
+  Assert::same($signedUrl, $lastRequest['url'], 'Signed URL is downloaded last');
+  Assert::same(false, isset($lastRequest['headers']['Authorization']), 'The token is not sent to the signed download URL');
+
+  Assert::same(null, PrivateRepositoryFallback::parseGitHubUrl('https://github.com/KornSW/WP-Secret/blob/master/x'), 'Other github.com URLs are ignored');
+  Assert::same('kornsw-secret.zip', PrivateRepositoryFallback::parseGitHubUrl('https://github.com/KornSW/WP-Secret/releases/latest/download/kornsw-secret.zip')['asset'], 'latest/download is recognized');
+}
+
+function testTemporaryRawTokenIsStripped(): void {
+  TestState::reset();
+  FakeHttp::on(API . '/repos/KornSW/WP-Secret/contents/doc', function (): array {
+    return FakeHttp::json(200, [
+      ['type' => 'file', 'name' => 'kornsw-secret.update.json', 'download_url' => RAW . 'WP-Secret/master/doc/kornsw-secret.update.json?token=TEMPORARY'],
+    ]);
+  });
+  $client = new GitHubClient(new GitHubTokenStore(new SecretCipher()));
+  $listing = $client->listUpdateJsonUrls('KornSW', 'WP-Secret');
+  Assert::same([RAW . 'WP-Secret/master/doc/kornsw-secret.update.json'], $listing['urls'], 'Temporary raw token is not kept');
+}
+
 testSourceParsing();
 testSecretCipher();
 testCatalogTiers();
 testRateLimitExhausted();
 testDiscovery();
+testPrivateRepositoryFallback();
+testTemporaryRawTokenIsStripped();
 
 foreach (Assert::$failures as $failure) {
   echo 'FAIL ' . $failure . "\n";

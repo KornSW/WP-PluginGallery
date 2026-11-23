@@ -2,7 +2,8 @@
 
 ## Upcoming Changes
 
-*(none)*
+ - **New Feature:** private GitHub-Repositories der Favoriten-Autoren (Anzeige, Installation und automatische Updates) mit hinterlegtem Token
+ - **New Feature:** Knopf „Jetzt aktualisieren“ auf der Galerie-Seite für Plugins mit verfügbarem Update
 
 ## v 1.1.1
 released **2026-10-22**, including:
