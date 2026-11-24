@@ -10,6 +10,7 @@ use KornSW\PluginGallery\Catalog\UpdateJsonReader;
 use KornSW\PluginGallery\Catalog\WordPressOrgDirectory;
 use KornSW\PluginGallery\GitHub\GitHubClient;
 use KornSW\PluginGallery\GitHub\GitHubTokenStore;
+use KornSW\PluginGallery\GitHub\PrivateRepositoryFallback;
 use KornSW\PluginGallery\Installer\PluginInstaller;
 use KornSW\PluginGallery\Plugin;
 use KornSW\PluginGallery\Source;
@@ -32,6 +33,7 @@ final class AdminActions {
   private PluginInstaller $installer;
   private GitHubClient $gitHubClient;
   private GitHubTokenStore $tokenStore;
+  private ?PrivateRepositoryFallback $privateRepositoryFallback;
 
   public function __construct(
     CatalogBuilder $catalogBuilder,
@@ -41,7 +43,8 @@ final class AdminActions {
     WordPressOrgDirectory $wordPressOrgDirectory,
     PluginInstaller $installer,
     GitHubClient $gitHubClient,
-    GitHubTokenStore $tokenStore
+    GitHubTokenStore $tokenStore,
+    ?PrivateRepositoryFallback $privateRepositoryFallback = null
   ) {
     $this->catalogBuilder = $catalogBuilder;
     $this->configuration = $configuration;
@@ -51,6 +54,7 @@ final class AdminActions {
     $this->installer = $installer;
     $this->gitHubClient = $gitHubClient;
     $this->tokenStore = $tokenStore;
+    $this->privateRepositoryFallback = $privateRepositoryFallback;
   }
 
   public function register(): void {
@@ -87,12 +91,21 @@ final class AdminActions {
     }
 
     if ($source->getType() === Source::TYPE_GITHUB) {
+      if ($this->privateRepositoryFallback !== null) {
+        // The administrator names this repository explicitly: a private one may be read with the token.
+        $this->privateRepositoryFallback->allowOwner($source->getOwner());
+      }
       $probe = $this->repositoryScanner->scan($source->getOwner(), $source->getRepository());
       $this->repositoryScanner->flush();
       if (count($probe['entries']) === 0) {
         $reason = 'keine lesbare *.update.json unter /doc';
         if (count($probe['errors']) > 0) {
           $reason = (string) $probe['errors'][0]['error'];
+        }
+        if ($this->gitHubClient->hasToken()) {
+          $reason .= ' (Bei einem privaten Repository: Hat der Token Lesezugriff "Contents: Read-only" darauf?)';
+        } else {
+          $reason .= ' (Bei einem privaten Repository wird ein GitHub-Token mit Lesezugriff benötigt.)';
         }
         $this->redirectWithNotice('error', 'Repository kann nicht verwendet werden: ' . $reason);
       }

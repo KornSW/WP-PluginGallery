@@ -108,6 +108,15 @@ function registerLandscape(array $pushedAt, int $rateRemaining = 4999): void {
     return FakeHttp::json(200, $repositories, array_merge($rateHeaders, ['etag' => $listingEtag]));
   });
 
+  $accessible = $GLOBALS['kornsw_pg_test_accessible_repositories'] ?? [];
+  $accessibleEtag = '"accessible-' . md5(json_encode($accessible)) . '"';
+  FakeHttp::on(API . '/user/repos?affiliation=owner,collaborator,organization_member&sort=full_name&per_page=100&page=1', function (array $headers) use ($accessible, $accessibleEtag, $rateHeaders): array {
+    if (($headers['If-None-Match'] ?? '') === $accessibleEtag) {
+      return ['status' => 304, 'body' => '', 'headers' => $rateHeaders];
+    }
+    return FakeHttp::json(200, $accessible, array_merge($rateHeaders, ['etag' => $accessibleEtag]));
+  });
+
   $plugins = ['WP-Alpha' => 'kornsw-alpha', 'WP-Beta' => 'kornsw-beta', 'WP-Delta' => 'kornsw-delta', 'Tools' => 'kornsw-tools'];
   foreach ($plugins as $repositoryName => $slug) {
     FakeHttp::on(API . '/repos/KornSW/' . $repositoryName . '/contents/doc', function () use ($repositoryName, $slug, $rateHeaders): array {
@@ -197,10 +206,13 @@ function testCatalogTiers(): void {
   Assert::same(0, FakeHttp::countRequests(API . '/repos/KornSW/WP-Old/'), 'Archived repositories are not scanned');
   Assert::same(0, FakeHttp::countRequests(API . '/repos/KornSW/Tools/'), 'Non-WP repositories are not scanned for the catalog');
 
-  // Rebuild without changes: only the (conditional) owner listing goes to the API.
+  // Rebuild without changes: only the (conditional) owner listing and, with a token, the (conditional) listing of
+  // accessible repositories go to the API. Both answer 304, which does not count against the rate limit.
   FakeHttp::$requests = [];
   $catalog = createCatalogBuilder()->getCatalog(true);
-  Assert::same(1, FakeHttp::countRequests(API), 'Unchanged landscape costs exactly one API request');
+  Assert::same(1, FakeHttp::countRequests(API . '/users/'), 'Unchanged landscape costs exactly one owner listing');
+  Assert::same(1, FakeHttp::countRequests(API . '/user/repos'), 'With token: one listing of accessible repositories');
+  Assert::same(2, FakeHttp::countRequests(API), 'Unchanged landscape costs no further API request');
   Assert::same(0, FakeHttp::countRequests(RAW), 'Unchanged landscape loads no update.json');
   Assert::same(['KornSW Delta'], names($catalog['related']), 'Related entries served from the repository cache');
 
@@ -223,6 +235,7 @@ function testRateLimitExhausted(): void {
   registerLandscape($pushedAt);
   $first = createCatalogBuilder()->getCatalog();
   Assert::same(['KornSW Beta', 'KornSW Delta'], names($first['related']), 'Anonymous build works and finds WP-Beta as related');
+  Assert::same(0, FakeHttp::countRequests(API . '/user/'), 'Without token private repositories are not listed');
 
   // GitHub reported remaining = 0: no further API calls until the reset, cached data is used.
   set_transient('kornsw_pg_github_rate_limit', ['remaining' => 0, 'limit' => 60, 'reset' => time() + 600, 'authenticated' => false, 'recorded_at' => time()]);
@@ -280,7 +293,7 @@ function testPrivateRepositoryFallback(): void {
   $result = $fallback->filterHttpResponse(notFound(), ['method' => 'GET', 'timeout' => 15], $rawUrl);
   Assert::same(200, $result['status'], 'Private update.json of a known owner is resolved via the API');
   Assert::same('2.0.0', json_decode($result['body'], true)['version'], 'Resolved content is the file content');
-  Assert::same('application/vnd.github.raw', FakeHttp::$requests[0]['headers']['Accept'], 'Raw media type is requested');
+  Assert::same('application/vnd.github.raw+json', FakeHttp::$requests[0]['headers']['Accept'], 'Raw media type is requested');
 
   $refsUrl = RAW . 'WP-Secret/refs/heads/master/doc/kornsw-secret.update.json';
   Assert::same(200, createFallback()->filterHttpResponse(notFound(), [], $refsUrl)['status'], 'refs/heads form is resolved as well');
@@ -326,6 +339,56 @@ function testTemporaryRawTokenIsStripped(): void {
   Assert::same([RAW . 'WP-Secret/master/doc/kornsw-secret.update.json'], $listing['urls'], 'Temporary raw token is not kept');
 }
 
+function testPrivateRepositoriesAreListed(): void {
+  TestState::reset();
+  $tokenStore = new GitHubTokenStore(new SecretCipher());
+  $tokenStore->save('github_pat_TEST');
+  $private = repository('WP-Secret', 's1');
+  $private['private'] = true;
+  $foreign = repository('WP-Foreign', 'f1');
+  $foreign['owner'] = ['login' => 'SomeoneElse'];
+  $foreign['private'] = true;
+  $GLOBALS['kornsw_pg_test_accessible_repositories'] = [$private, $foreign, repository('WP-Alpha', 'a1')];
+  registerLandscape(['WP-Alpha' => 'a1', 'WP-Beta' => 'b1', 'WP-Delta' => 'd1', 'WP-Gamma' => 'g1', 'Tools' => 't1']);
+  FakeHttp::on(API . '/repos/KornSW/WP-Secret/contents/doc', function (): array {
+    return FakeHttp::json(200, [
+      ['type' => 'file', 'name' => 'kornsw-secret.update.json', 'download_url' => RAW . 'WP-Secret/master/doc/kornsw-secret.update.json?token=TEMPORARY'],
+    ]);
+  });
+  // The raw URL itself answers 404 (private); in WordPress the http_response fallback resolves it, here directly.
+  FakeHttp::on(RAW . 'WP-Secret/master/doc/kornsw-secret.update.json', function (): array {
+    return FakeHttp::json(200, updateJson('KornSW Secret', '1.0.0', 'kornsw-secret'));
+  });
+
+  $catalog = createCatalogBuilder()->getCatalog();
+  unset($GLOBALS['kornsw_pg_test_accessible_repositories']);
+  Assert::same(['KornSW Beta', 'KornSW Delta', 'KornSW Secret'], names($catalog['related']), 'Private WP-* repository of a favorite owner is listed automatically');
+  Assert::same(0, FakeHttp::countRequests(API . '/repos/SomeoneElse/'), 'Private repositories of other owners are ignored');
+  Assert::same(1, FakeHttp::countRequests(API . '/repos/KornSW/WP-Alpha/contents/doc'), 'Repositories visible in both listings are scanned once');
+}
+
+function testFallbackTrustsStoredAndAllowedOwners(): void {
+  TestState::reset();
+  $tokenStore = new GitHubTokenStore(new SecretCipher());
+  $tokenStore->save('github_pat_TEST');
+  $rawUrl = 'https://raw.githubusercontent.com/OtherOrg/WP-Private/master/doc/x.update.json';
+  FakeHttp::on(API . '/repos/OtherOrg/WP-Private/contents/doc/x.update.json?ref=master', function (): array {
+    // GitHub ignored the raw media type: JSON content object with base64.
+    return FakeHttp::json(200, ['name' => 'x.update.json', 'sha' => 'abc', 'encoding' => 'base64', 'content' => chunk_split(base64_encode('{"version":"3.0.0"}'), 60, "\n")]);
+  });
+
+  Assert::same(404, createFallback()->filterHttpResponse(notFound(), [], $rawUrl)['status'], 'Unknown owner stays untouched');
+
+  $fallback = createFallback();
+  $fallback->allowOwner('otherorg');
+  $result = $fallback->filterHttpResponse(notFound(), [], $rawUrl);
+  Assert::same(200, $result['status'], 'Explicitly allowed owner (source being added) is resolved');
+  Assert::same('{"version":"3.0.0"}', $result['body'], 'Base64 content object is decoded');
+
+  update_option(SourceConfiguration::OPTION_EXTRA_SOURCES, [['type' => 'repository', 'url' => 'https://github.com/OtherOrg/WP-Private']]);
+  Assert::same(200, createFallback()->filterHttpResponse(notFound(), [], $rawUrl)['status'], 'Owner of a stored GitHub source is trusted');
+}
+
 testSourceParsing();
 testSecretCipher();
 testCatalogTiers();
@@ -333,6 +396,8 @@ testRateLimitExhausted();
 testDiscovery();
 testPrivateRepositoryFallback();
 testTemporaryRawTokenIsStripped();
+testPrivateRepositoriesAreListed();
+testFallbackTrustsStoredAndAllowedOwners();
 
 foreach (Assert::$failures as $failure) {
   echo 'FAIL ' . $failure . "\n";

@@ -20,6 +20,7 @@ Plugins der Favoriten-Autoren sollen auch aus privaten GitHub-Repositories insta
 ## Konsequenzen
 
 - Private Repositories brauchen einen Token mit Lesezugriff (Fine-grained: „Contents: Read-only“ für die Repositories; klassisch: `repo`).
-- Private Repositories werden nicht automatisch als `WP-*` gefunden (`/users/<owner>/repos` listet nur öffentliche); sie werden als Favorit oder zusätzliche Quelle eingetragen. Eine automatische Suche würde eine zusätzliche API-Anfrage pro Galerie-Aufbau kosten.
+- Private `WP-*`-Repositories der Favoriten-Besitzer werden automatisch gefunden: `/users/<owner>/repos` listet nur öffentliche, daher wird mit Token zusätzlich `/user/repos` (alle für den Token sichtbaren Repositories) abgefragt und auf die Favoriten-Besitzer gefiltert. Das kostet eine weitere, per ETag bedingte Anfrage pro Galerie-Aufbau (Nachtrag 2026-11-24).
+- Der Fallback vertraut auch den Besitzern gespeicherter zusätzlicher GitHub-Quellen und beim Hinzufügen dem Besitzer der neuen Quelle; vorher scheiterte das Hinzufügen privater Repositories fremder Besitzer.
 - Jeder Update-Check eines privaten Plugins kostet einen erfolglosen Abruf plus API-Anfragen (innerhalb einer Anfrage gecacht).
 - Ohne aktive Galerie (deaktiviert) entfällt der Fallback; die Updates privater Plugins sind dann nicht sichtbar.

@@ -10,7 +10,7 @@ Das Plugin liegt im Ordner [`kornsw-plugingallery/`](../kornsw-plugingallery/) (
 | `Source` | Wert-Objekt einer Quelle (GitHub-Repo, WordPress.org-Slug, `update.json`-URL) inkl. Parser für Eingaben. |
 | `SourceConfiguration` | Favoriten aus `config.php` und gespeicherte zusätzliche Quellen (Option `kornsw_pg_extra_sources`). |
 | `GitHub\GitHubClient` | REST-API mit Token, ETag-Cache, Rate-Limit-Erkennung; Fallback über die GitHub-Webseite. |
-| `GitHub\PrivateRepositoryFallback` | Hook `http_response`: ersetzt 404-Antworten für private Repositories der Favoriten-Besitzer durch Abrufe über die API mit Token (siehe unten). |
+| `GitHub\PrivateRepositoryFallback` | Hook `http_response`: ersetzt 404-Antworten für private Repositories der Favoriten-Besitzer und der Besitzer zusätzlicher GitHub-Quellen durch Abrufe über die API mit Token (siehe unten). |
 | `GitHub\GitHubTokenStore` | Token aus `wp-config.php` oder verschlüsselt aus Option `kornsw_pg_github_token`. |
 | `Security\SecretCipher` | AES-256-GCM mit Schlüssel aus den WordPress-Salts. |
 | `Catalog\RepositoryScanner` | Plugins eines Repositories (`doc/*.update.json`), Cache je Repository über `pushed_at`. |
@@ -25,7 +25,7 @@ Das Plugin liegt im Ordner [`kornsw-plugingallery/`](../kornsw-plugingallery/) (
 
 1. Für jeden distinkten GitHub-Besitzer der Favoriten wird die Repository-Liste geholt (`/users/<owner>/repos`, bedingt per ETag – ein `304` zählt nicht gegen das Rate-Limit). Sie liefert je Repository `pushed_at`.
 2. Favoriten und zusätzliche Quellen werden aufgelöst. Ein GitHub-Repository wird nur dann erneut gelesen (`/contents/doc` + `update.json`), wenn sich sein `pushed_at` seit dem letzten Scan geändert hat. Jedes Release pusht eine neue `update.json`, daher kann der Cache keine neue Version verdecken.
-3. Alle übrigen `WP-*`-Repositories derselben Besitzer werden genauso gescannt und als „automatisch gefunden“ eingeordnet.
+3. Alle übrigen `WP-*`-Repositories derselben Besitzer werden genauso gescannt und als „automatisch gefunden“ eingeordnet. Mit Token kommt eine weitere (bedingte) Liste `/user/repos` hinzu; daraus werden die privaten Repositories derselben Besitzer übernommen, die `/users/<owner>/repos` nicht liefert.
 4. Der fertige Katalog liegt eine Stunde im Transient `kornsw_pg_catalog_v3`; „Galerie aktualisieren“ baut ihn sofort neu.
 
 Bei erschöpftem Rate-Limit (vom letzten Response gemeldet) werden keine API-Anfragen gesendet, bis der Reset erreicht ist; stattdessen werden gecachte Daten verwendet. Fehler, `403`/`429` und `5xx` fallen ebenfalls auf gecachte Daten zurück. Gibt es keinen Cache, wird der `/doc`-Ordner über die GitHub-Webseite gelesen.
@@ -38,7 +38,7 @@ Der Self-Update-Mechanismus der Plugins (`self-update.php`, von der Release-Pipe
 
 - die Antwort `404` ist, die Methode `GET`,
 - die URL `raw.githubusercontent.com/<owner>/<repo>/<ref>/<pfad>` oder `github.com/<owner>/<repo>/releases/download/<tag>/<asset>` (bzw. `releases/latest/download/<asset>`) ist,
-- `<owner>` ein GitHub-Besitzer der Favoriten aus `config.php` ist und ein Token hinterlegt ist.
+- `<owner>` ein GitHub-Besitzer der Favoriten aus `config.php` oder einer gespeicherten zusätzlichen GitHub-Quelle ist (beim Hinzufügen einer Quelle auch deren Besitzer) und ein Token hinterlegt ist.
 
 Dann wird die Datei über `/repos/<owner>/<repo>/contents/<pfad>?ref=<ref>` (Medientyp raw) bzw. das Asset über `/releases/tags/<tag>` → `/releases/assets/<id>` (`application/octet-stream`, ohne Redirect-Folgen) geladen; die signierte Download-URL wird ohne Token abgerufen, Streaming in die Temp-Datei von `download_url()` bleibt erhalten. Öffentliche Repositories (Antwort `200`) kosten keine zusätzliche Anfrage. Der Token geht weiterhin nur an `api.github.com`. Kurzlebige `?token=`-Parameter aus der Contents-API werden nicht übernommen.
 

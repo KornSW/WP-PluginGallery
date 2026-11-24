@@ -29,7 +29,7 @@ final class Plugin {
   public const REQUIRED_CAPABILITY = 'install_plugins';
 
   private static ?Plugin $instance = null;
-  private static bool $privateRepositoryFallbackRegistered = false;
+  private static ?PrivateRepositoryFallback $privateRepositoryFallback = null;
 
   private GalleryPage $galleryPage;
   private AdminActions $adminActions;
@@ -59,7 +59,8 @@ final class Plugin {
       $wordPressOrgDirectory,
       $installer,
       $gitHubClient,
-      $tokenStore
+      $tokenStore,
+      self::$privateRepositoryFallback
     );
   }
 
@@ -80,12 +81,11 @@ final class Plugin {
    * outside the admin area, because WordPress runs automatic plugin updates from WP-Cron.
    */
   private static function registerPrivateRepositoryFallback(): void {
-    if (self::$privateRepositoryFallbackRegistered) {
+    if (self::$privateRepositoryFallback !== null) {
       return;
     }
-    self::$privateRepositoryFallbackRegistered = true;
-    $fallback = new PrivateRepositoryFallback(new GitHubTokenStore(new SecretCipher()), new SourceConfiguration());
-    $fallback->register();
+    self::$privateRepositoryFallback = new PrivateRepositoryFallback(new GitHubTokenStore(new SecretCipher()), new SourceConfiguration());
+    self::$privateRepositoryFallback->register();
   }
 
   private function registerHooks(): void {

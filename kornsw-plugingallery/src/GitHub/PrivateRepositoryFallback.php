@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace KornSW\PluginGallery\GitHub;
 
+use KornSW\PluginGallery\Source;
 use KornSW\PluginGallery\SourceConfiguration;
 
 if (!defined('ABSPATH')) {
@@ -12,7 +13,8 @@ if (!defined('ABSPATH')) {
 
 /**
  * Makes private GitHub repositories of the well-known authors (the GitHub owners of the favorites in
- * config.php) usable when a personal access token is configured.
+ * config.php and of the additional GitHub sources stored by the administrator) usable when a personal
+ * access token is configured.
  *
  * Purely additive: it only reacts to an HTTP response that already failed with 404 for
  *   - https://raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>   (update.json, read by the gallery and by
@@ -48,6 +50,14 @@ final class PrivateRepositoryFallback {
 
   public function register(): void {
     add_filter('http_response', [$this, 'filterHttpResponse'], 10, 3);
+  }
+
+  /**
+   * Trusts an owner for the rest of this request (e.g. while probing a source the administrator is adding).
+   */
+  public function allowOwner(string $owner): void {
+    $this->loadKnownOwners();
+    $this->knownOwners[strtolower($owner)] = true;
   }
 
   /**
@@ -158,13 +168,23 @@ final class PrivateRepositoryFallback {
   }
 
   private function isKnownOwner(string $owner): bool {
-    if ($this->knownOwners === null) {
-      $this->knownOwners = [];
-      foreach ($this->configuration->getFavoriteGitHubOwners() as $knownOwner) {
-        $this->knownOwners[strtolower($knownOwner)] = true;
+    $this->loadKnownOwners();
+    return isset($this->knownOwners[strtolower($owner)]);
+  }
+
+  private function loadKnownOwners(): void {
+    if ($this->knownOwners !== null) {
+      return;
+    }
+    $this->knownOwners = [];
+    foreach ($this->configuration->getFavoriteGitHubOwners() as $knownOwner) {
+      $this->knownOwners[strtolower($knownOwner)] = true;
+    }
+    foreach ($this->configuration->getExtraSources() as $source) {
+      if ($source->getType() === Source::TYPE_GITHUB) {
+        $this->knownOwners[strtolower($source->getOwner())] = true;
       }
     }
-    return isset($this->knownOwners[strtolower($owner)]);
   }
 
   /**
@@ -189,14 +209,36 @@ final class PrivateRepositoryFallback {
       rawurlencode($target['ref'])
     );
     $requestArguments = $this->baseArguments($arguments);
-    $requestArguments['headers'] = $this->apiHeaders($token, 'application/vnd.github.raw');
+    $requestArguments['headers'] = $this->apiHeaders($token, 'application/vnd.github.raw+json');
     $response = wp_safe_remote_get($apiUrl, $requestArguments);
     if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
       return null;
     }
     if (!$isStream) {
+      $response = $this->decodeContentObject($response);
+    }
+    if (!$isStream) {
       $this->rawFileCache[$originalUrl] = $response;
     }
+    return $response;
+  }
+
+  /**
+   * Safety net: if GitHub ignores the raw media type, it answers with the JSON content object (base64).
+   *
+   * @param array<string, mixed> $response
+   * @return array<string, mixed>
+   */
+  private function decodeContentObject(array $response): array {
+    $decoded = json_decode(wp_remote_retrieve_body($response), true);
+    if (!is_array($decoded) || ($decoded['encoding'] ?? '') !== 'base64' || !isset($decoded['content'], $decoded['sha'])) {
+      return $response;
+    }
+    $content = base64_decode(str_replace(["\n", "\r"], '', (string) $decoded['content']), true);
+    if ($content === false) {
+      return $response;
+    }
+    $response['body'] = $content;
     return $response;
   }
 

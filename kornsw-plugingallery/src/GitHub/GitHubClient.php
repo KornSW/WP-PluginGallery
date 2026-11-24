@@ -42,9 +42,32 @@ final class GitHubClient {
    * @return array{ok: bool, repositories: array<int, array<string, mixed>>, error: string}
    */
   public function listOwnerRepositories(string $owner): array {
+    return $this->listRepositories('/users/' . rawurlencode($owner) . '/repos?type=owner&sort=full_name&per_page=100&page=%d');
+  }
+
+  /**
+   * All repositories the configured token can access, including private ones (empty without token).
+   * "/users/<owner>/repos" lists public repositories only, so private repositories of the favorite owners
+   * are only visible here.
+   *
+   * @return array{ok: bool, repositories: array<int, array<string, mixed>>, error: string}
+   */
+  public function listAccessibleRepositories(): array {
+    if (!$this->hasToken()) {
+      return ['ok' => true, 'repositories' => [], 'error' => ''];
+    }
+    return $this->listRepositories('/user/repos?affiliation=owner,collaborator,organization_member&sort=full_name&per_page=100&page=%d');
+  }
+
+  /**
+   * Paged repository listing in compact form; the path format takes the page number.
+   *
+   * @return array{ok: bool, repositories: array<int, array<string, mixed>>, error: string}
+   */
+  private function listRepositories(string $pathFormat): array {
     $repositories = [];
     for ($page = 1; $page <= self::MAX_REPOSITORY_PAGES; $page++) {
-      $path = sprintf('/users/%s/repos?type=owner&sort=full_name&per_page=100&page=%d', rawurlencode($owner), $page);
+      $path = sprintf($pathFormat, $page);
       $response = $this->getApiJson($path, function ($data): array {
         $compact = [];
         if (!is_array($data)) {
@@ -61,6 +84,7 @@ final class GitHubClient {
             'pushed_at' => (string) ($repository['pushed_at'] ?? ''),
             'archived' => !empty($repository['archived']),
             'fork' => !empty($repository['fork']),
+            'private' => !empty($repository['private']),
           ];
         }
         return $compact;

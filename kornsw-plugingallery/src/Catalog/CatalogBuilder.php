@@ -196,7 +196,10 @@ final class CatalogBuilder {
    */
   private function loadOwnerRepositories(): array {
     $repositories = [];
+    $knownRepositories = [];
+    $owners = [];
     foreach ($this->configuration->getFavoriteGitHubOwners() as $owner) {
+      $owners[strtolower($owner)] = true;
       $listing = $this->gitHubClient->listOwnerRepositories($owner);
       if (!$listing['ok']) {
         continue;
@@ -205,8 +208,20 @@ final class CatalogBuilder {
         if ($repository['owner'] === '') {
           $repository['owner'] = $owner;
         }
+        $knownRepositories[strtolower($repository['owner'] . '/' . $repository['name'])] = true;
         $repositories[] = $repository;
       }
+    }
+
+    // With a token: private repositories of the same owners that the token can read (one extra listing).
+    $accessible = $this->gitHubClient->listAccessibleRepositories();
+    foreach ($accessible['repositories'] as $repository) {
+      $repositoryKey = strtolower($repository['owner'] . '/' . $repository['name']);
+      if (!isset($owners[strtolower($repository['owner'])]) || isset($knownRepositories[$repositoryKey])) {
+        continue;
+      }
+      $knownRepositories[$repositoryKey] = true;
+      $repositories[] = $repository;
     }
     return $repositories;
   }

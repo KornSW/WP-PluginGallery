@@ -266,8 +266,9 @@ final class GalleryPage {
       <p>
         Private Repositories der Favoriten-Autoren: Hat der Token Lesezugriff darauf (Fine-grained Token mit
         „Contents: Read-only“ für die Repositories, bzw. klassischer Token mit <code>repo</code>), funktionieren
-        Galerie, Installation und die automatischen Updates dieser Plugins. Private Repositories werden nicht
-        automatisch gefunden, sondern in die Favoriten oder als zusätzliche Quelle eingetragen.
+        Galerie, Installation und die automatischen Updates dieser Plugins. Private <code>WP-*</code>-Repositories
+        der Favoriten-Autoren erscheinen automatisch, sobald der Token sie lesen kann; private Repositories
+        anderer Besitzer lassen sich als zusätzliche Quelle eintragen.
       </p>
       <p><strong>Status:</strong> <?php echo esc_html($this->describeTokenState()); ?></p>
       <?php if ($rateLimit !== null) { ?>

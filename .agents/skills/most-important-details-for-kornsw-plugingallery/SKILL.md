@@ -2,7 +2,7 @@
 name: most-important-details-for-kornsw-plugingallery
 description: Repository-specific knowledge for WP-PluginGallery (WordPress plugin "KornSW Plugin Gallery", slug kornsw-plugingallery) - config.php favorites format, the three catalog tiers (favorite / additional / related WP-* repositories), GitHub rate-limit strategy (token, ETag and pushed_at caches), WordPress.org installation via the core installer, option and transient names, standalone tests. Load when changing, reviewing or debugging this plugin.
 metadata:
-  version: "2026-11-23"
+  version: "2026-11-24"
 ---
 
 # Most Important Details for kornsw-plugingallery
@@ -29,14 +29,15 @@ General plugin rules come from `wordpress-plugin-development-guidelines` (AI-SKI
 - `GitHubClient::getApiJson()` caches a reduced form of each API response with its ETag (transients `kornsw_pg_gh_<md5>`); never cache raw repository listings (too large).
 - `RepositoryScanner` caches per repository with `pushed_at` (option `kornsw_pg_repository_cache`); call `flush()` after a scan run.
 - When the last response reported `remaining = 0`, no API request is sent until the reset; cached data is used.
-- Regression guard: an unchanged landscape must cost exactly one API request per owner (covered by `tests/run-tests.php`).
+- Regression guard: an unchanged landscape must cost exactly one API request per owner, plus (with token only) one conditional `/user/repos` listing (covered by `tests/run-tests.php`).
 
 ## Private repositories
 
 - `GitHub\PrivateRepositoryFallback` hooks `http_response` on every request (registered in `Plugin::boot()` before the `is_admin()` return, because auto-updates run from WP-Cron). It only replaces a **404** GET on `raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>` or `github.com/<owner>/<repo>/releases/(download/<tag>|latest/download)/<asset>` when `<owner>` is a favorite owner and a token exists; content is refetched via the contents API (raw media type) or releases API (asset with `application/octet-stream`, `redirection => 0`, signed `Location` downloaded **without** token, streaming args kept).
 - Public repositories must stay untouched (no extra request); the token goes only to `api.github.com`. Covered by `tests/run-tests.php`.
 - `listUpdateJsonUrls()` strips the temporary `?token=` of private raw URLs.
-- Private repositories are not auto-discovered (would break the one-request-per-owner guard).
+- Trusted owners of the fallback: favorite owners, owners of stored additional GitHub sources, and (per request, `allowOwner()`) the owner of a source being added.
+- Private repositories are auto-discovered with a token: `GitHubClient::listAccessibleRepositories()` (`/user/repos`), filtered to favorite owners and merged in `CatalogBuilder::loadOwnerRepositories()`.
 - Manual update: action `kornsw_pg_update_plugin` (cap `update_plugins`, nonce `kornsw_pg_update_<md5(package)>`) runs `Plugin_Upgrader::install(..., ['overwrite_package' => true])`.
 
 ## Installation
