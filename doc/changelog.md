@@ -2,8 +2,13 @@
 
 ## Upcoming Changes
 
+*(none)*
+
+## v 1.3.0
+released **2026-11-24**, including:
  - **New Feature:** private WP-* Repositories der Favoriten-Autoren werden automatisch angezeigt, wenn der Token sie lesen kann
  - private Repositories lassen sich als zusätzliche Quelle hinzufügen (auch von anderen Besitzern)
+
 
 ## v 1.2.0
 released **2026-11-23**, including:
